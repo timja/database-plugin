@@ -1,5 +1,7 @@
 package org.jenkinsci.plugins.database;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import hudson.Util;
 import hudson.util.Secret;
 import java.io.Serializable;
@@ -59,23 +61,25 @@ public abstract class AbstractRemoteDatabase extends Database implements Seriali
 
     @Override
     public synchronized DataSource getDataSource() throws SQLException {
-        if (source==null) {
-            BasicDataSource2 fac = new BasicDataSource2();
-            fac.setDriverClass(getDriverClass());
-            fac.setUrl(getJdbcUrl());
-            fac.setUsername(username);
-            fac.setPassword(Secret.toString(password));
-            fac.setValidationQuery(validationQuery);
+        if (source == null) {
+            HikariConfig config = new HikariConfig();
+            Class<? extends Driver> driverClass = getDriverClass();
+            config.setDriverClassLoader(driverClass.getClassLoader());
+            config.setDriverClassName(driverClass.getName());
+            config.setJdbcUrl(getJdbcUrl());
+            config.setUsername(username);
+            config.setPassword(Secret.toString(password));
+            config.setConnectionTestQuery(validationQuery);
 
             try {
                 for (Map.Entry e : Util.loadProperties(Util.fixNull(properties)).entrySet()) {
-                    fac.addConnectionProperty(e.getKey().toString(), e.getValue().toString());
+                    config.addDataSourceProperty(e.getKey().toString(), e.getValue().toString());
                 }
             } catch (IOException e) {
                 throw new SQLException("Invalid properties",e);
             }
 
-            source = fac.createDataSource();
+            source = new HikariDataSource(config);
         }
         return source;
     }

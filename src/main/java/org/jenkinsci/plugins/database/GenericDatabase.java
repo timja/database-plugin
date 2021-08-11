@@ -1,5 +1,7 @@
 package org.jenkinsci.plugins.database;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import hudson.Extension;
 import hudson.util.FormValidation;
 import hudson.util.Secret;
@@ -15,6 +17,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.sql.DataSource;
 import java.io.File;
 import java.io.IOException;
+import java.sql.Driver;
 import java.sql.SQLException;
 import org.kohsuke.stapler.verb.POST;
 
@@ -87,17 +90,15 @@ public class GenericDatabase extends Database {
     @Override
     public synchronized DataSource getDataSource() throws SQLException {
         if (source==null) {
-            BasicDataSource2 source = new BasicDataSource2();
-            source.setDriverClassLoader(getDescriptor().getClassLoader());
-            source.setDriverClassName(driver);
-            source.setUrl(url);
-            source.setUsername(username);
-            source.setPassword(Secret.toString(password));
-            source.setInitialSize(initialSize);
-            source.setMaxTotal(maxTotal);
-            source.setMaxIdle(maxIdle);
-            source.setMinIdle(minIdle);
-            this.source = source.createDataSource();
+            HikariConfig config = new HikariConfig();
+            config.setDriverClassLoader(getDescriptor().getClassLoader());
+            config.setDriverClassName(driver);
+            config.setJdbcUrl(url);
+            config.setUsername(username);
+            config.setPassword(Secret.toString(password));
+            config.setMaximumPoolSize(maxTotal);
+            config.setMinimumIdle(minIdle);
+            this.source = new HikariDataSource(config);
         }
         return source;
     }
@@ -130,7 +131,7 @@ public class GenericDatabase extends Database {
             if (loader ==null) {
                 // delegate to the container
                 loader = new AntClassLoader(HttpServletRequest.class.getClassLoader(),true);
-                File[] files = new File(Jenkins.getInstance().getRootDir(), "jdbc-drivers").listFiles();
+                File[] files = new File(Jenkins.get().getRootDir(), "jdbc-drivers").listFiles();
                 if (files!=null) {
                     for (File jar : files) {
                         if (jar.getName().endsWith(".jar"))
